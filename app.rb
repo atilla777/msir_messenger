@@ -1,8 +1,12 @@
 # frozen_string_literal: true
 
+require 'byebug'
+
 require 'logger'
 require 'nats/client'
 require 'telegram/bot'
+
+class EmptyMessageError < StandardError; end
 
 class Log
   private
@@ -31,6 +35,7 @@ class JetStreamCunsomer
 
     connect = NATS.connect(cluster_opts)
     logger.write(:info, "Connected to #{connect.connected_server}")
+
     jet_stream = connect.jetstream
     jet_stream.add_stream(name: config.nats_stream, subjects: [config.nats_subject])
     pull_subscribe = jet_stream.pull_subscribe(config.nats_subject, config.nats_durable)
@@ -38,15 +43,23 @@ class JetStreamCunsomer
     while true do
       begin
         messages = pull_subscribe.fetch(config.nats_fetch_at_once)
+        process_messages(logger, processor, messages)
       rescue NATS::IO::Timeout
         next
       end
-      messages.each do |message|
-        logger.write(:info, "#{Time.now} - Received: #{message}")
-        processor.process(message.data)
-        message.ack
-      end
     end
+  end
+
+  def process_messages(logger, processor, messages)
+    messages.each do |message|
+        logger.write(:info, "#{Time.now} - Received: #{message}")
+        msg = message.data
+        raise EmptyMessageError if msg.empty?
+        processor.process(logger, msg)
+        message.ack
+    end
+  rescue StandardError => e
+    logger.write(:error, "Cant`t send the message - #{e}")
   end
 end
 
@@ -84,7 +97,7 @@ class Sender
     @config = config
   end
 
-  def process(message)
+  def process(logger, message)
     Telegram::Bot::Client.run(config.telegram_token) do |bot|
       bot.api.send_message(chat_id: config.telegram_chat_id, text: message) 
     end
