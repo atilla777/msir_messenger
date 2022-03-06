@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
-require 'byebug'
-
-require 'logger'
+require 'rubygems'
+require 'bundler/setup'
+Bundler.require(:default, ENV['APP_ENV'] || :development)
 require 'nats/client'
 require 'telegram/bot'
+require 'logger'
 
 class EmptyMessageError < StandardError; end
 
@@ -16,7 +17,7 @@ class Log
   public
 
   def initialize
-    @logger = Logger.new(STDOUT)
+    @logger = Logger.new('/proc/1/fd/1')
   end
 
   def write(level, message)
@@ -25,7 +26,7 @@ class Log
 end
 
 class JetStreamCunsomer 
-  def initialize(config:, logger: , processor:)
+  def initialize(config:, logger:, processor:)
     cluster_opts = {
       servers: config.nats_servers,
       dont_randomize_servers: true,
@@ -100,6 +101,7 @@ class Sender
   def process(logger, message)
     Telegram::Bot::Client.run(config.telegram_token) do |bot|
       bot.api.send_message(chat_id: config.telegram_chat_id, text: message) 
+      logger.write(:info, "Message sent")
     end
   end
 end
