@@ -3,9 +3,19 @@
 require 'rubygems'
 require 'bundler/setup'
 Bundler.require(:default, ENV['APP_ENV'] || :development)
+
 require 'nats/client'
+require 'opentelemetry/sdk'
+require 'opentelemetry/exporter/otlp'
+require 'opentelemetry/instrumentation/all'
 require 'telegram/bot'
 require 'logger'
+
+OpenTelemetry::SDK.configure do |c|
+  c.service_name = 'msir_works_producer'
+  c.use_all()
+  #c.use 'OpenTelemetry::Instrumentation::Faraday'
+end
 
 class EmptyMessageError < StandardError; end
 
@@ -100,7 +110,10 @@ class Sender
 
   def process(logger, message)
     Telegram::Bot::Client.run(config.telegram_token) do |bot|
-      bot.api.send_message(chat_id: config.telegram_chat_id, text: message) 
+      tracer = OpenTelemetry.tracer_provider.tracer('my-tracer')
+      tracer.in_span("send_message") do |span|
+        bot.api.send_message(chat_id: config.telegram_chat_id, text: message) 
+      end
       logger.write(:info, "Message sent")
     end
   end
