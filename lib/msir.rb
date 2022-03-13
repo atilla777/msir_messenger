@@ -11,15 +11,13 @@ require 'opentelemetry-instrumentation-faraday'
 require 'telegram/bot'
 require 'logger'
 
-require_relative 'msir_config'
-require_relative 'msir_log'
-require_relative 'msir_sender'
-require_relative 'msir_errors'
-require_relative 'msir_jet_stream_cunsomer'
+Dir[File.join(__dir__, 'msir', '**', '*.rb')].each { |file| require file }
 
 OpenTelemetry::SDK.configure do |c|
   c.service_name = Msir.config.otel_service_name
   c.use 'OpenTelemetry::Instrumentation::Faraday'
 end
 
-Msir::JetStreamCunsomer.new(processor: Msir::Sender.new).run
+module Msir; end
+
+Msir::JetStreamCunsomer.new(processor: Msir::Sender).run

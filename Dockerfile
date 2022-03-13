@@ -23,4 +23,4 @@ RUN bundle install --jobs 8 --retry 3
 
 COPY . /app
 
-CMD bundle exec ruby app.rb
+CMD bundle exec ruby ./lib/msir.rb

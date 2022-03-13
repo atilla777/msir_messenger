@@ -27,10 +27,10 @@ module Msir
     def run
       while true do
         begin
-          messages = pull_subscribe.fetch(config.nats_fetch_at_once)
+          messages = pull_subscribe.fetch(Msir.config.nats_fetch_at_once)
           tracer = OpenTelemetry.tracer_provider.tracer('my_tracer')
           tracer.in_span('process_message') do |span|
-            process_messages(processor, messages)
+            process_messages(messages)
           end
         rescue NATS::IO::Timeout
           next
@@ -40,12 +40,12 @@ module Msir
 
     private
 
-    def process_messages(processor, messages)
+    def process_messages(messages)
       messages.each do |message|
         Msir.logger.write(:info, "#{Time.now} - Received: #{message}")
           msg = message.data
           raise EmptyMessageError if msg.empty?
-          processor.process(logger, msg)
+          processor.process(msg)
           message.ack
       end
     rescue StandardError => e
